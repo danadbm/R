@@ -1,0 +1,146 @@
+---
+title: 'R DAPT 621 Assignment #1'
+author: "Dana Mark"
+date: "November 6, 2018"
+output:
+  html_document:
+    highlight: tango
+    theme: lumen
+  pdf_document: default
+  word_document: default
+---
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Preparation
+### Load Packages
+
+```{r packages}
+library(ggplot2) # plots
+library(data.table) # data manipulation
+```
+
+### Load Datasets
+```{r data}
+# load datasets
+hems <- read.csv('https://bit.ly/2RlqXy5', header = TRUE, sep = ',')
+hems_agg <- read.csv('https://bit.ly/2y7k3Ui', header = TRUE, sep = ',')
+```
+
+# Exercise 1
+### Question
+Compare all agencies to each other in terms of their total incidents volume. 
+Which agency responded to the highest number of incidents? Which agency responded to the lowest number of incidents?
+
+### Answer
+The bar chart below shows that PHI has the highest number of incidents and Air Evacs has the lowest.
+
+```{r Q1}
+# Order agencies by number of incidents descending
+hems_agg <- setorder(hems_agg, -incidents)
+agency_ord <- hems_agg$agency
+hems$agency_o <- factor(hems$agency, levels = agency_ord)
+
+# Create histogram
+ggplot(data = hems, mapping = aes(x = agency_o)) + 
+  geom_bar(fill = 'seagreen3', color = 'black') +
+  labs(y = 'Number of Incidents',
+       x = 'Agency') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5)) +
+  geom_text(aes(label = scales::comma(..count..),
+                 y = ..count..), stat = 'count', vjust = -.05)
+```
+
+# Exercise 2
+### Question
+The data frame contains a column called patient_acuity which has the following values: 
+'Critical (Red)', 'Emergent (Yellow)', 'Not Recorded', 'Lower Acuity (Green)', and 'Not Applicable'.
+Find out which agency tackled the highest proportion of critical incidents.
+
+### Answer
+The stacked bar chart below shows that CARILON has the highest proportion of critical incidents.
+
+```{r Q2}
+ggplot(data = hems, mapping = aes(x = agency_o, fill = patient_acuity)) + 
+  geom_bar(position = 'fill', color = 'black') +
+  labs(y = 'Patient Acuity Proportion',
+       x = 'Agency',
+       fill = 'Patient Acuity Levels') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+```
+
+# Exercise 3
+### Question
+1.	Review the distribution of patient_blood_pressure across different levels of patient_acuity.
+2.	Visually inspect the plot and estimate the central tendency (median) value of patient_blood_pressure across all acuity levels.
+3.	Visually inspect the plot to identify the acuity level(s) that tends to have a higher proportion of patients with blood pressure below 100.
+4.	Provide a rationalization for the type of plot you used for this exercise.
+
+### Answer
+With a density plot by patient acuity levels, we can see the distribution across different patient blood pressures. The peaks show where there is a higher distribution across the acuities. All acuities have the highest density in the 125 to 150 range. Note that missing values in the data aren't included.
+
+```{r Q3a}
+ggplot(data = hems, aes(x = patient_blood_pressure, fill = patient_acuity)) +
+  geom_density(na.rm = TRUE, alpha = .5) +
+  labs(y = 'Density',
+       x = 'Patient Blood Pressure',
+       fill = 'Patient Acuity Levels')
+```
+
+A box plot provides a different view of the distriution across acuity levels and better exhibits the median values. Here we see that median patient blood pressures range between 132 - 138.
+
+```{r Q3b}
+ggplot(data = hems, aes(x = patient_acuity, y = patient_blood_pressure, fill = patient_acuity)) +
+  geom_boxplot(na.rm = TRUE) +
+  labs(y = 'Patient Blood Pressure',
+       x = 'Patient Acuity',
+       fill = 'Patient Acuity Levels') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5)) +
+  stat_summary(na.rm = TRUE, fun.y = median, geom = 'point') +
+  stat_summary(na.rm = TRUE, fun.y = median, aes(label = round(..y.., digits = 0)), geom = 'text', vjust = -.5)
+```
+
+Althought it appears that the Critical acuity level has the heaviest left tail suggesting the highest proportion of <100 blood pressures, it's hard to see the exact proportion of patients with blood pressure <100 from the plots above.
+
+By categorizing the patient blood pressures into <100, 100+, and missing value buckets, we can get a better sense of the proportions. Here a bar chart showing the percentage proportions is more helpful.
+
+The Critical patient acuity shows the highest proportion (11%) of <100 blood pressures. Interesting to see that we are typically missing ~10% of the blood pressures in this dataset.
+
+```{r Q3c}
+# Add column in dataset to split values into <= 100 and > 100
+hems$bp_100[hems$patient_blood_pressure < 100] <- '<100'
+hems$bp_100[hems$patient_blood_pressure >= 100] <- '100+'
+
+ggplot(hems, aes(x = bp_100,  group = patient_acuity)) + 
+  geom_bar(aes(y = ..prop.., fill = factor(..x..)), stat = 'count') +
+  geom_text(aes(label = scales::percent(..prop..),
+                 y= ..prop.. ), stat = 'count', size = 3, vjust = -.5) +
+  labs(y = 'Percentage', x = 'Patient Blood Pressure') +
+  guides(fill = FALSE) +
+  facet_grid(~patient_acuity) +
+  scale_y_continuous(labels = scales::percent)
+```
+
+# Exercise 4
+### Question
+1.	Create a gapminder style chart that compares all agencies with respect to their avg_reaction_time and avg_total_dur. (in hems_agg dataset)
+2.	Interpret the chart in your own words.
+
+### Answer
+The bubble chart below shows how agencies compare against each other with respect to their average reaction times (time between notification of incident when vitals taken) and average total duration (reaction time plus time to arrival at medical facility).
+
+FAIRFAX stands out as the quickest reaction times and time to the medical facility. Does this agency have better access to air transport? Smaller area to cover? As indicated by the size of the bubble; however, there are much fewer incidents recorded and we might have less confidence that this is a trend.
+
+WINGS AIR stands out as an agency with the longest reaction time and total duration to the medical facility.
+
+This chart does give us good insight into the reactiveness of each agency and some insight into the additional time used to get patients to medical facilities. For instance, comparing CARILON and AIR METHODS which have similar reaction times, we can see that CARILON is faster to get patients back to a medical facility after vitals are taken. It could be more useful to look Avg Reaction vs. Avg Time to Facility (= Avg Total Duration - Avg Reaction Time).
+
+```{r Q4}
+ggplot(hems_agg, aes(x = avg_total_dur, y = avg_reaction_time)) + 
+  geom_point(aes(color = agency, size = incidents)) +
+  geom_text(aes(label = agency), size = 2.5, hjust = .5, vjust = 1.2) +
+  labs(y = 'Avg Reaction Time (min)', x = 'Avg Total Duration (min)', size = 'Number of Incidents') +
+  guides(color = FALSE)
+```
